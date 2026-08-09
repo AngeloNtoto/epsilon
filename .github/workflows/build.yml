@@ -85,7 +85,9 @@ jobs:
 
       - name: Verify APK signature
         run: |
-          $ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose epsilon-release.apk
+          $ANDROID_HOME/build-tools/35.0.0/apksigner verify \
+            --verbose \
+            epsilon-release.apk
 
       - name: Upload signed APK
         uses: actions/upload-artifact@v4
