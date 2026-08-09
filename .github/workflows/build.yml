@@ -155,8 +155,8 @@ jobs:
       # ─────────────────────────────────────────────
 
       - name: Build Tauri Android
-        run: |
-          pnpm tauri android build --apk --target aarch64
+      run: |
+        pnpm tauri android build --apk --target aarch64 armv7 i686 x86_64
 
       # ─────────────────────────────────────────────
       # SIGNATURE
