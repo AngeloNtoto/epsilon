@@ -49,6 +49,9 @@ window.addEventListener("DOMContentLoaded", () => {
 
   const runAction = async (command: string, pendingMessage: string) => {
     clearDetails();
+    if (command === "demasquer_dossiers") {
+      appendDetail("🙋‍♂️ pardon ange");
+    }
     setBusy(true);
     setStatus(pendingMessage, "info");
 
@@ -56,7 +59,7 @@ window.addEventListener("DOMContentLoaded", () => {
       const message = await invoke<string>(command);
       setStatus(message, "success");
       if (command === "demasquer_dossiers") {
-        appendDetail("Restauration terminée.");
+        appendDetail("🙏 merci ange");
       }
     } catch (error) {
       console.error(`Erreur invoke ${command}:`, error);
