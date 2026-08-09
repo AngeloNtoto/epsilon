@@ -122,7 +122,7 @@ fn demasquer_dossiers() -> Result<String, String> {
         entries.reverse();
 
         for entry in entries {
-            let hidden_path = root.join(&entry.hidden);
+            let hidden_path = resolve_hidden_path(root, &entry.hidden);
             let original_path = root.join(&entry.original);
 
             if !hidden_path.exists() {
@@ -199,6 +199,29 @@ fn remove_manifest(root: &Path) -> Result<(), String> {
     Ok(())
 }
 
+fn resolve_hidden_path(root: &Path, hidden: &str) -> PathBuf {
+    let hidden_path = root.join(hidden);
+    if hidden_path.exists() {
+        return hidden_path;
+    }
+
+    let hidden_rel = Path::new(hidden);
+    if let Some(file_name) = hidden_rel.file_name().and_then(|n| n.to_str()) {
+        if !file_name.starts_with('.') {
+            let alt = if let Some(parent) = hidden_rel.parent() {
+                root.join(parent).join(format!(".{}", file_name))
+            } else {
+                root.join(format!(".{}", file_name))
+            };
+            if alt.exists() {
+                return alt;
+            }
+        }
+    }
+
+    hidden_path
+}
+
 fn parcourir(dir: &Path, elements: &mut Vec<PathBuf>) -> Result<(), String> {
     let entries = fs::read_dir(dir)
         .map_err(|e| format!("Impossible de lire le dossier {}: {}", dir.display(), e))?;
@@ -228,7 +251,8 @@ fn parcourir(dir: &Path, elements: &mut Vec<PathBuf>) -> Result<(), String> {
 pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
-            pieger_dossiers
+            pieger_dossiers,
+            demasquer_dossiers
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
