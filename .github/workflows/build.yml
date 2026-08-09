@@ -124,7 +124,7 @@ jobs:
           java-version: 17
 
       # ─────────────────────────────────────────────
-      # ANDROID
+      # ANDROID SDK
       # ─────────────────────────────────────────────
 
       - name: Setup Android SDK
@@ -133,8 +133,8 @@ jobs:
       - name: Install Android SDK components
         run: |
           sdkmanager "platform-tools" \
-            "platforms;android-35" \
-            "build-tools;35.0.0" \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
             "ndk;29.0.13846066"
 
       # ─────────────────────────────────────────────
@@ -149,17 +149,101 @@ jobs:
           pnpm tauri --version
           cargo tauri --version
 
+      # ─────────────────────────────────────────────
+      # INITIALIZE ANDROID PROJECT
+      # ─────────────────────────────────────────────
+
+      - name: Initialize Android project
+        run: |
+          pnpm tauri android init
+
+      # ─────────────────────────────────────────────
+      # CONFIGURE UNIVERSAL APK
+      # ─────────────────────────────────────────────
+
+      - name: Configure Android ABI
+        shell: bash
+        run: |
+          GRADLE_FILE="src-tauri/gen/android/app/build.gradle.kts"
+
+          if [ ! -f "$GRADLE_FILE" ]; then
+            echo "Fichier Gradle introuvable : $GRADLE_FILE"
+            exit 1
+          fi
+
+          echo "Configuration du fichier : $GRADLE_FILE"
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("src-tauri/gen/android/app/build.gradle.kts")
+          text = path.read_text()
+
+          if "splits {" not in text:
+              text += r'''
+
+          android {
+              splits {
+                  abi {
+                      isEnable = true
+                      reset()
+                      include("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+                      isUniversalApk = true
+                  }
+              }
+          }
+          '''
+
+          path.write_text(text)
+          PY
+
+          echo "Configuration ABI terminée."
 
       # ─────────────────────────────────────────────
       # BUILD ANDROID
       # ─────────────────────────────────────────────
 
       - name: Build Tauri Android
-      run: |
-        pnpm tauri android build --apk --target aarch64 armv7 i686 x86_64
+        run: |
+          pnpm tauri android build --apk
 
       # ─────────────────────────────────────────────
-      # SIGNATURE
+      # FIND UNIVERSAL APK
+      # ─────────────────────────────────────────────
+
+      - name: Find generated APK
+        id: apk
+        shell: bash
+        run: |
+          echo "APK générés :"
+
+          find src-tauri/gen/android/app/build/outputs/apk \
+            -type f \
+            -name "*.apk" \
+            -print
+
+          APK=$(find src-tauri/gen/android/app/build/outputs/apk \
+            -type f \
+            -name "*universal*.apk" \
+            | head -n 1)
+
+          if [ -z "$APK" ]; then
+            echo "Aucun APK universel trouvé."
+
+            echo "Recherche de tous les APK disponibles :"
+            find src-tauri/gen/android/app/build/outputs/apk \
+              -type f \
+              -name "*.apk" \
+              -print
+
+            exit 1
+          fi
+
+          echo "APK universel trouvé : $APK"
+          echo "apk=$APK" >> "$GITHUB_OUTPUT"
+
+      # ─────────────────────────────────────────────
+      # DECODE RELEASE KEYSTORE
       # ─────────────────────────────────────────────
 
       - name: Decode release keystore
@@ -168,14 +252,18 @@ jobs:
         run: |
           echo "$KEYSTORE_BASE64" | base64 --decode > epsilon-release.keystore
 
+      # ─────────────────────────────────────────────
+      # SIGN APK
+      # ─────────────────────────────────────────────
+
       - name: Sign APK
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
-          APK="src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk"
+          APK="${{ steps.apk.outputs.apk }}"
 
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" sign \
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign \
             --ks epsilon-release.keystore \
             --ks-key-alias "$KEY_ALIAS" \
             --ks-pass "pass:$KEYSTORE_PASSWORD" \
@@ -183,22 +271,48 @@ jobs:
             "$APK"
 
       # ─────────────────────────────────────────────
-      # VERIFICATION
+      # VERIFY SIGNATURE
       # ─────────────────────────────────────────────
 
       - name: Verify APK signature
         run: |
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify \
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify \
             --verbose \
             epsilon-release.apk
 
       # ─────────────────────────────────────────────
-      # ARTIFACT
+      # VERIFY APK ABI
+      # ─────────────────────────────────────────────
+
+      - name: Verify APK architectures
+        run: |
+          echo "Architectures présentes dans l'APK :"
+
+          unzip -l epsilon-release.apk | grep "lib/" || true
+
+          echo ""
+          echo "Informations APK :"
+
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging \
+            epsilon-release.apk | \
+            grep -E "package:|sdkVersion|targetSdkVersion|native-code"
+
+      # ─────────────────────────────────────────────
+      # RENAME APK
+      # ─────────────────────────────────────────────
+
+      - name: Rename APK
+        run: |
+          mv epsilon-release.apk \
+            "epsilon-${{ steps.version.outputs.version }}-universal.apk"
+
+      # ─────────────────────────────────────────────
+      # UPLOAD ARTIFACT
       # ─────────────────────────────────────────────
 
       - name: Upload signed APK
         uses: actions/upload-artifact@v4
         with:
           name: epsilon-${{ steps.version.outputs.version }}
-          path: epsilon-release.apk
+          path: epsilon-${{ steps.version.outputs.version }}-universal.apk
           if-no-files-found: error
