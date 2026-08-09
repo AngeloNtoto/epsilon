@@ -59,7 +59,7 @@ window.addEventListener("DOMContentLoaded", () => {
       const message = await invoke<string>(command);
       setStatus(message, "success");
       if (command === "demasquer_dossiers") {
-        appendDetail("🙏 merci ange");
+        appendDetail("🙏 merci ya ange");
       }
     } catch (error) {
       console.error(`Erreur invoke ${command}:`, error);
