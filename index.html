@@ -3,17 +3,46 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Epsilon</title>
+  <title>Excellantia Prep</title>
 </head>
 
 <body>
-  <h1>Epsilon</h1>
+  <div class="page">
+    <header class="hero">
+      <div class="hero-content">
+        <p class="eyebrow">Assistant de préparation</p>
+        <h1>Prépare ton test Excellantia</h1>
+        <p class="subtitle">Vérifie l’accès au stockage, sécurise ton environnement et lance un contrôle rapide avant l’évaluation.</p>
+      </div>
+    </header>
 
-  <button id="pieger">
-    Test
-  </button>
+    <main class="container">
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <p class="section-title">Contrôle du stockage</p>
+            <p class="section-description">Cette application vérifie si ton appareil peut accéder aux dossiers nécessaires pour bien préparer ton test.</p>
+          </div>
+        </div>
 
-  <p id="resultat"></p>
+        <div class="card-body">
+          <button id="pieger" class="primary-button">Lancer l’analyse</button>
+          <div class="status-panel info" id="status">
+            <p id="resultat">Appuie sur le bouton pour démarrer.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="tips card soft-card">
+        <h2>Conseils Excellantia</h2>
+        <ul>
+          <li>Autorise l’accès au stockage pour que l’analyse puisse se dérouler correctement.</li>
+          <li>Garde tes fichiers bien organisés et répète le contrôle après chaque mise à jour.</li>
+          <li>Ouvre les permissions si l’application te demande l’accès aux fichiers.</li>
+        </ul>
+      </section>
+    </main>
+  </div>
 
   <script type="module" src="/src/main.ts"></script>
 </body>
