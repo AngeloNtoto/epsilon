@@ -156,7 +156,7 @@ jobs:
         run: |
           APK="src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk"
 
-          $ANDROID_HOME/build-tools/35.0.0/apksigner sign \
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" sign \
             --ks epsilon-release.keystore \
             --ks-key-alias "$KEY_ALIAS" \
             --ks-pass "pass:$KEYSTORE_PASSWORD" \
@@ -169,7 +169,7 @@ jobs:
 
       - name: Verify APK signature
         run: |
-          $ANDROID_HOME/build-tools/35.0.0/apksigner verify \
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify \
             --verbose \
             epsilon-release.apk
 
