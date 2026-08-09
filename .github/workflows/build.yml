@@ -6,6 +6,9 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-android:
     name: Build and sign Android APK
@@ -14,6 +17,53 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ─────────────────────────────────────────────
+      # VERSION AUTOMATIQUE
+      # ─────────────────────────────────────────────
+
+      - name: Calculate version
+        id: version
+        run: |
+          git fetch --tags --force
+
+          LAST_TAG=$(git tag --sort=-v:refname | head -n 1)
+
+          if [ -z "$LAST_TAG" ]; then
+            VERSION="1.0.0"
+          else
+            VERSION="${LAST_TAG#v}"
+
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+            PATCH=$((PATCH + 1))
+
+            VERSION="$MAJOR.$MINOR.$PATCH"
+          fi
+
+          TAG="v$VERSION"
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+          echo "Nouvelle version : $VERSION"
+          echo "Nouveau tag : $TAG"
+
+      - name: Create Git tag
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git tag -a "$TAG" -m "Release $VERSION"
+          git push origin "$TAG"
+
+      # ─────────────────────────────────────────────
+      # NODE
+      # ─────────────────────────────────────────────
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -34,6 +84,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # ─────────────────────────────────────────────
+      # RUST
+      # ─────────────────────────────────────────────
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
@@ -45,11 +99,19 @@ jobs:
             i686-linux-android \
             x86_64-linux-android
 
+      # ─────────────────────────────────────────────
+      # JAVA
+      # ─────────────────────────────────────────────
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
+
+      # ─────────────────────────────────────────────
+      # ANDROID
+      # ─────────────────────────────────────────────
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
@@ -61,11 +123,25 @@ jobs:
             "build-tools;35.0.0" \
             "ndk;29.0.13846066"
 
+      # ─────────────────────────────────────────────
+      # TAURI
+      # ─────────────────────────────────────────────
+
       - name: Install Tauri CLI
         run: pnpm add -D @tauri-apps/cli
 
+      - name: Set Tauri version
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          pnpm tauri version "$VERSION"
+
       - name: Build Tauri Android
         run: pnpm tauri android build
+
+      # ─────────────────────────────────────────────
+      # SIGNATURE
+      # ─────────────────────────────────────────────
 
       - name: Decode release keystore
         env:
@@ -87,14 +163,22 @@ jobs:
             --out epsilon-release.apk \
             "$APK"
 
+      # ─────────────────────────────────────────────
+      # VERIFICATION
+      # ─────────────────────────────────────────────
+
       - name: Verify APK signature
         run: |
           $ANDROID_HOME/build-tools/35.0.0/apksigner verify \
             --verbose \
             epsilon-release.apk
 
+      # ─────────────────────────────────────────────
+      # ARTIFACT
+      # ─────────────────────────────────────────────
+
       - name: Upload signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: epsilon-android
+          name: epsilon-${{ steps.version.outputs.version }}
           path: epsilon-release.apk
