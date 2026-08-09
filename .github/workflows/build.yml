@@ -15,6 +15,10 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
+      # ─────────────────────────────────────────────
+      # CHECKOUT
+      # ─────────────────────────────────────────────
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -26,6 +30,7 @@ jobs:
 
       - name: Calculate version
         id: version
+        shell: bash
         run: |
           git fetch --tags --force
 
@@ -62,7 +67,7 @@ jobs:
           git push origin "$TAG"
 
       # ─────────────────────────────────────────────
-      # NODE
+      # NODE + PNPM
       # ─────────────────────────────────────────────
 
       - name: Setup Node.js
@@ -90,6 +95,14 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Tauri Cargo CLI
+        run: |
+          cargo install tauri-cli --version "^2" --locked
+
+      - name: Check Tauri Cargo CLI
+        run: |
+          cargo tauri --version
 
       - name: Install Rust Android targets
         run: |
@@ -124,20 +137,24 @@ jobs:
             "ndk;29.0.13846066"
 
       # ─────────────────────────────────────────────
-      # TAURI
+      # TAURI CLI JS
       # ─────────────────────────────────────────────
 
       - name: Install Tauri CLI
         run: pnpm add -D @tauri-apps/cli
 
-      - name: Set Tauri version
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
+      - name: Check Tauri CLI
         run: |
-          pnpm tauri version "$VERSION"
+          pnpm tauri --version
+          cargo tauri --version
+
+      # ─────────────────────────────────────────────
+      # BUILD ANDROID
+      # ─────────────────────────────────────────────
 
       - name: Build Tauri Android
-        run: pnpm tauri android build
+        run: |
+          pnpm tauri android build --apk --target aarch64
 
       # ─────────────────────────────────────────────
       # SIGNATURE
