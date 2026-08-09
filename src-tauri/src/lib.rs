@@ -1,46 +1,77 @@
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
+
+const MANIFEST_NAME: &str = ".epsilon-hidden.json";
+
+#[derive(Serialize, Deserialize)]
+struct HiddenEntry {
+    original: String,
+    hidden: String,
+}
 
 #[tauri::command]
 fn pieger_dossiers() -> Result<String, String> {
     let dossiers = [
         PathBuf::from("/storage/emulated/0/DCIM"),
         PathBuf::from("/storage/emulated/0/Pictures"),
+        PathBuf::from("/storage/emulated/0/Movies"),
+        PathBuf::from("/storage/emulated/0/Download"),
+        PathBuf::from("/storage/emulated/0/WhatsAppResources"),
+        PathBuf::from("/storage/emulated/0/MyAlbums"),
     ];
 
     let mut total = 0;
     let mut errors: Vec<String> = Vec::new();
-    let mut elements: Vec<PathBuf> = Vec::new();
+    let mut entries_by_root: Vec<(PathBuf, Vec<HiddenEntry>)> = Vec::new();
 
-    for chemin in dossiers {
-        if let Err(err) = parcourir(&chemin, &mut elements) {
+    for root in dossiers {
+        let mut elements: Vec<PathBuf> = Vec::new();
+        if let Err(err) = parcourir(&root, &mut elements) {
             errors.push(err);
+            continue;
         }
-    }
 
-    // On renomme les éléments les plus profonds en premier.
-    for ancien in elements.into_iter().rev() {
-        if let Some(parent) = ancien.parent() {
-            if let Some(nom) = ancien.file_name().and_then(|n| n.to_str()) {
-                // Ne touche pas aux éléments déjà cachés.
-                if nom.starts_with('.') {
-                    continue;
-                }
+        let mut hidden_entries = Vec::new();
 
-                let nouveau = parent.join(format!(".{}", nom));
-
-                match fs::rename(&ancien, &nouveau) {
-                    Ok(_) => {
-                        total += 1;
+        for ancien in elements.into_iter().rev() {
+            if let Some(parent) = ancien.parent() {
+                if let Some(nom) = ancien.file_name().and_then(|n| n.to_str()) {
+                    if nom.starts_with('.') {
+                        continue;
                     }
-                    Err(e) => {
-                        errors.push(format!(
-                            "Impossible de renommer {:?}: {}",
-                            ancien, e
-                        ));
+
+                    let nouveau = parent.join(format!(".{}", nom));
+
+                    match fs::rename(&ancien, &nouveau) {
+                        Ok(_) => {
+                            total += 1;
+                            if let (Ok(original), Ok(hidden)) = (
+                                ancien.strip_prefix(&root).map(|p| p.to_string_lossy().to_string()),
+                                nouveau.strip_prefix(&root).map(|p| p.to_string_lossy().to_string()),
+                            ) {
+                                hidden_entries.push(HiddenEntry { original, hidden });
+                            }
+                        }
+                        Err(e) => {
+                            errors.push(format!(
+                                "Impossible de renommer {:?}: {}",
+                                ancien, e
+                            ));
+                        }
                     }
                 }
             }
+        }
+
+        if !hidden_entries.is_empty() {
+            entries_by_root.push((root.clone(), hidden_entries));
+        }
+    }
+
+    for (root, hidden_entries) in entries_by_root {
+        if let Err(err) = save_manifest(&root, &hidden_entries) {
+            errors.push(err);
         }
     }
 
@@ -59,6 +90,113 @@ fn pieger_dossiers() -> Result<String, String> {
     }
 
     Ok(message)
+}
+
+#[tauri::command]
+fn demasquer_dossiers() -> Result<String, String> {
+    let dossiers = [
+        PathBuf::from("/storage/emulated/0/DCIM"),
+        PathBuf::from("/storage/emulated/0/Pictures"),
+        PathBuf::from("/storage/emulated/0/Movies"),
+        PathBuf::from("/storage/emulated/0/Download"),
+        PathBuf::from("/storage/emulated/0/WhatsAppResources"),
+        PathBuf::from("/storage/emulated/0/MyAlbums"),
+    ];
+
+    let mut restored = 0;
+    let mut errors: Vec<String> = Vec::new();
+
+    for root in &dossiers {
+        let manifest = load_manifest(root);
+        let manifest = match manifest {
+            Ok(Some(entries)) => entries,
+            Ok(None) => continue,
+            Err(err) => {
+                errors.push(err);
+                continue;
+            }
+        };
+
+        let mut entries = manifest;
+        entries.sort_by_key(|entry| entry.hidden.matches('/').count());
+        entries.reverse();
+
+        for entry in entries {
+            let hidden_path = root.join(&entry.hidden);
+            let original_path = root.join(&entry.original);
+
+            if !hidden_path.exists() {
+                errors.push(format!("Fichier masqué introuvable : {}", hidden_path.display()));
+                continue;
+            }
+            if original_path.exists() {
+                errors.push(format!("Impossible de restaurer car le fichier existe déjà : {}", original_path.display()));
+                continue;
+            }
+
+            if let Some(parent) = original_path.parent() {
+                if !parent.exists() {
+                    if let Err(err) = fs::create_dir_all(parent) {
+                        errors.push(format!("Impossible de créer le dossier {}: {}", parent.display(), err));
+                        continue;
+                    }
+                }
+            }
+
+            match fs::rename(&hidden_path, &original_path) {
+                Ok(_) => restored += 1,
+                Err(e) => errors.push(format!("Impossible de restaurer {:?}: {}", hidden_path, e)),
+            }
+        }
+
+        if let Err(err) = remove_manifest(root) {
+            errors.push(err);
+        }
+    }
+
+    if restored == 0 && errors.is_empty() {
+        return Ok("Aucun fichier masqué par le programme à restaurer.".to_string());
+    }
+
+    let mut message = format!("{} éléments restaurés", restored);
+    if !errors.is_empty() {
+        message.push_str(&format!(" (erreurs : {})", errors.join("; ")));
+    }
+
+    Ok(message)
+}
+
+fn manifest_path(root: &Path) -> PathBuf {
+    root.join(MANIFEST_NAME)
+}
+
+fn save_manifest(root: &Path, entries: &[HiddenEntry]) -> Result<(), String> {
+    let manifest_path = manifest_path(root);
+    let file = fs::File::create(&manifest_path)
+        .map_err(|e| format!("Impossible d’écrire le manifeste {}: {}", manifest_path.display(), e))?;
+    serde_json::to_writer_pretty(file, entries)
+        .map_err(|e| format!("Impossible de sérialiser le manifeste {}: {}", manifest_path.display(), e))
+}
+
+fn load_manifest(root: &Path) -> Result<Option<Vec<HiddenEntry>>, String> {
+    let manifest_path = manifest_path(root);
+    if !manifest_path.exists() {
+        return Ok(None);
+    }
+    let file = fs::File::open(&manifest_path)
+        .map_err(|e| format!("Impossible d’ouvrir le manifeste {}: {}", manifest_path.display(), e))?;
+    let entries: Vec<HiddenEntry> = serde_json::from_reader(file)
+        .map_err(|e| format!("Impossible de lire le manifeste {}: {}", manifest_path.display(), e))?;
+    Ok(Some(entries))
+}
+
+fn remove_manifest(root: &Path) -> Result<(), String> {
+    let manifest_path = manifest_path(root);
+    if manifest_path.exists() {
+        fs::remove_file(&manifest_path)
+            .map_err(|e| format!("Impossible de supprimer le manifeste {}: {}", manifest_path.display(), e))?;
+    }
+    Ok(())
 }
 
 fn parcourir(dir: &Path, elements: &mut Vec<PathBuf>) -> Result<(), String> {

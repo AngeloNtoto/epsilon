@@ -160,6 +160,13 @@ h1 {
 .tips h2 {
   margin-top: 0;
   font-size: 1.3rem;
+  cursor: pointer;
+}
+
+.small-note {
+  margin: 0.75rem 0 0 0;
+  font-size: 0.95rem;
+  color: #64748b;
 }
 
 .tips ul {
