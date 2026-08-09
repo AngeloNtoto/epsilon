@@ -149,63 +149,6 @@ jobs:
           pnpm tauri --version
           cargo tauri --version
 
-      # ─────────────────────────────────────────────
-      # VERSION TAURI
-      # ─────────────────────────────────────────────
-
-      - name: Set app version
-  env:
-    VERSION: ${{ steps.version.outputs.version }}
-  shell: bash
-  run: |
-    echo "Setting app version to $VERSION"
-
-    node -e '
-      const fs = require("fs");
-
-      const files = [
-        "package.json",
-        "src-tauri/tauri.conf.json",
-        "src-tauri/Cargo.toml"
-      ];
-
-      for (const file of files) {
-        if (!fs.existsSync(file)) {
-          console.log("Skipping:", file);
-          continue;
-        }
-
-        let text = fs.readFileSync(file, "utf8");
-
-        if (file.endsWith("package.json")) {
-          const json = JSON.parse(text);
-          json.version = process.env.VERSION;
-          fs.writeFileSync(file, JSON.stringify(json, null, 2) + "\n");
-          console.log("Updated:", file);
-        }
-
-        if (file.endsWith("tauri.conf.json")) {
-          const json = JSON.parse(text);
-          json.version = process.env.VERSION;
-          fs.writeFileSync(file, JSON.stringify(json, null, 2) + "\n");
-          console.log("Updated:", file);
-        }
-
-        if (file.endsWith("Cargo.toml")) {
-          text = text.replace(
-            /^version\s*=\s*"[^"]+"/m,
-            `version = "${process.env.VERSION}"`
-          );
-          fs.writeFileSync(file, text);
-          console.log("Updated:", file);
-        }
-      }
-    '
-
-    echo "Versions après modification:"
-    grep -n '"version"' package.json || true
-    grep -n '"version"' src-tauri/tauri.conf.json || true
-    grep -n '^version' src-tauri/Cargo.toml || true
 
       # ─────────────────────────────────────────────
       # BUILD ANDROID
