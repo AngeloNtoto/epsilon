@@ -118,8 +118,12 @@ fn demasquer_dossiers() -> Result<String, String> {
         };
 
         let mut entries = manifest;
-        entries.sort_by_key(|entry| entry.hidden.matches('/').count());
-        entries.reverse();
+        entries.sort_by(|a, b| {
+            b.hidden
+                .matches('/')
+                .count()
+                .cmp(&a.hidden.matches('/').count())
+        });
 
         for entry in entries {
             let hidden_path = resolve_hidden_path(root, &entry.hidden);
