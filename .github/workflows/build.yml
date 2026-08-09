@@ -15,6 +15,7 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
+
       # ─────────────────────────────────────────────
       # CHECKOUT
       # ─────────────────────────────────────────────
@@ -149,6 +150,16 @@ jobs:
           cargo tauri --version
 
       # ─────────────────────────────────────────────
+      # VERSION TAURI
+      # ─────────────────────────────────────────────
+
+      - name: Set Tauri version
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          pnpm tauri version "$VERSION"
+
+      # ─────────────────────────────────────────────
       # BUILD ANDROID
       # ─────────────────────────────────────────────
 
@@ -199,3 +210,4 @@ jobs:
         with:
           name: epsilon-${{ steps.version.outputs.version }}
           path: epsilon-release.apk
+          if-no-files-found: error
