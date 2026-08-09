@@ -100,7 +100,14 @@ h1 {
   margin-top: 1.5rem;
 }
 
-.primary-button {
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.primary-button,
+.secondary-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -108,21 +115,34 @@ h1 {
   padding: 1rem 1.5rem;
   font-size: 1rem;
   font-weight: 700;
-  color: #ffffff;
-  background: linear-gradient(135deg, #4338ca, #2563eb);
   border: none;
   border-radius: 18px;
-  box-shadow: 0 18px 40px rgba(37, 99, 235, 0.2);
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.primary-button:hover {
+.primary-button {
+  color: #ffffff;
+  background: linear-gradient(135deg, #4338ca, #2563eb);
+  box-shadow: 0 18px 40px rgba(37, 99, 235, 0.2);
+}
+
+.secondary-button {
+  color: #1e3a8a;
+  background: #e0e7ff;
+}
+
+.primary-button:hover,
+.secondary-button:hover {
   transform: translateY(-1px);
+}
+
+.primary-button:hover {
   box-shadow: 0 22px 48px rgba(37, 99, 235, 0.22);
 }
 
-.primary-button:disabled {
+.primary-button:disabled,
+.secondary-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
@@ -140,6 +160,35 @@ h1 {
   margin: 0;
   color: #334155;
   font-size: 1rem;
+}
+
+.details-panel {
+  display: none;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  padding: 1rem 1.25rem;
+}
+
+.details-panel.visible {
+  display: block;
+}
+
+.details-title {
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 0.75rem;
+}
+
+.details-panel ul {
+  margin: 0;
+  padding-left: 1.25rem;
+  color: #334155;
+}
+
+.details-panel li {
+  margin-bottom: 0.45rem;
+  font-size: 0.95rem;
 }
 
 .status-panel.success {
@@ -202,7 +251,8 @@ h1 {
 
   .card,
   .soft-card,
-  .status-panel {
+  .status-panel,
+  .details-panel {
     background: #111827;
     border-color: rgba(148, 163, 184, 0.18);
   }
@@ -213,11 +263,18 @@ h1 {
 
   .section-description,
   .status-panel p,
+  .details-panel ul,
+  .details-panel li,
   .tips li {
     color: #cbd5e1;
   }
 
   .primary-button {
     box-shadow: 0 18px 40px rgba(37, 99, 235, 0.35);
+  }
+
+  .secondary-button {
+    background: rgba(30, 41, 59, 0.8);
+    color: #f8fafc;
   }
 }

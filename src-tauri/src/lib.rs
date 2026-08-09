@@ -227,12 +227,23 @@ fn resolve_hidden_path(root: &Path, hidden: &str) -> PathBuf {
 }
 
 fn parcourir(dir: &Path, elements: &mut Vec<PathBuf>) -> Result<(), String> {
-    let entries = fs::read_dir(dir)
-        .map_err(|e| format!("Impossible de lire le dossier {}: {}", dir.display(), e))?;
+    let entries = match fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(());
+        }
+        Err(err) => {
+            return Err(format!("Impossible de lire le dossier {}: {}", dir.display(), err));
+        }
+    };
 
     for entry in entries {
-        let entry = entry
-            .map_err(|e| format!("Impossible de lire un élément dans {}: {}", dir.display(), e))?;
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(err) => {
+                return Err(format!("Impossible de lire un élément dans {}: {}", dir.display(), err));
+            }
+        };
         let path = entry.path();
 
         if let Some(nom) = path.file_name().and_then(|n| n.to_str()) {

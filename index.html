@@ -27,9 +27,16 @@
         </div>
 
         <div class="card-body">
-          <button id="pieger" class="primary-button">Lancer l’analyse</button>
+          <div class="button-row">
+            <button id="pieger" class="primary-button">Lancer l'analyse</button>
+            <button id="retirer-points" class="secondary-button">Retirer les points</button>
+          </div>
           <div class="status-panel info" id="status">
             <p id="resultat">Appuie sur le bouton pour démarrer.</p>
+          </div>
+          <div class="details-panel" id="details-panel" aria-live="polite">
+            <div class="details-title">Journal de restauration</div>
+            <ul id="details-list"></ul>
           </div>
         </div>
       </section>
